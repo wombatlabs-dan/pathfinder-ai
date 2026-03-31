@@ -1,0 +1,533 @@
+{
+  "version": "1.0.0",
+  "name": "PathFinder AI Skill Gap Analysis Pipeline",
+  "description": "Multi-stage AI pipeline that analyzes current skills, maps target roles, identifies gaps, and generates personalized learning plans using Neo4j knowledge graph and LLM reasoning.",
+  "author": "PathFinder Team",
+  "created": "2026-03-30",
+  "tags": ["skill-development", "career-planning", "knowledge-graph", "ai-workflow"],
+  "config": {
+    "timeout": 300000,
+    "parallelExecution": false,
+    "errorHandling": "halt-on-error",
+    "logLevel": "info"
+  },
+  "variables": {
+    "neo4j_host": {
+      "type": "string",
+      "description": "Neo4j database host URL",
+      "default": "bolt://localhost:7687",
+      "required": true
+    },
+    "neo4j_user": {
+      "type": "string",
+      "description": "Neo4j database username",
+      "default": "neo4j",
+      "required": true
+    },
+    "neo4j_password": {
+      "type": "string",
+      "description": "Neo4j database password",
+      "sensitive": true,
+      "required": true
+    },
+    "llm_api_key": {
+      "type": "string",
+      "description": "API key for LLM service (OpenAI, Anthropic, etc.)",
+      "sensitive": true,
+      "required": true
+    },
+    "llm_model": {
+      "type": "string",
+      "description": "LLM model identifier",
+      "default": "gpt-4",
+      "required": true
+    },
+    "llm_api_endpoint": {
+      "type": "string",
+      "description": "LLM API endpoint",
+      "default": "https://api.openai.com/v1",
+      "required": false
+    }
+  },
+  "nodes": [
+    {
+      "id": "node-1-input-parser",
+      "name": "Input Parser",
+      "type": "input",
+      "description": "Validates and structures user input containing current role and skill list",
+      "position": {
+        "x": 100,
+        "y": 50
+      },
+      "config": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "currentRole": {
+              "type": "string",
+              "description": "User's current professional role or title",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "currentSkills": {
+              "type": "array",
+              "description": "List of skills the user currently possesses (free-text)",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "targetRole": {
+              "type": "string",
+              "description": "Desired target role or position",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "timelineMonths": {
+              "type": "integer",
+              "description": "Desired timeline in months to achieve target role",
+              "minimum": 1,
+              "maximum": 60
+            },
+            "learningStyle": {
+              "type": "string",
+              "enum": ["self-paced", "mentored", "structured-course", "mixed"],
+              "description": "Preferred learning approach"
+            }
+          },
+          "required": ["currentRole", "currentSkills", "targetRole"]
+        }
+      },
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "parsedInput",
+          "type": "object",
+          "description": "Validated input data ready for skill normalization"
+        }
+      ]
+    },
+    {
+      "id": "node-2-skill-normalizer",
+      "name": "Skill Normalizer",
+      "type": "llm",
+      "description": "Uses LLM to normalize free-text skill descriptions to canonical knowledge graph node IDs",
+      "position": {
+        "x": 350,
+        "y": 50
+      },
+      "config": {
+        "model": "${llm_model}",
+        "temperature": 0.1,
+        "maxTokens": 2000,
+        "apiKey": "${llm_api_key}",
+        "apiEndpoint": "${llm_api_endpoint}",
+        "systemPromptFile": "prompts/skill-normalizer.md",
+        "mappingTable": {
+          "ux-design": "skill:ux-design:001",
+          "ui-design": "skill:ui-design:002",
+          "prototyping": "skill:prototyping:003",
+          "user-research": "skill:user-research:004",
+          "interaction-design": "skill:interaction-design:005",
+          "visual-design": "skill:visual-design:006",
+          "information-architecture": "skill:information-architecture:007",
+          "usability-testing": "skill:usability-testing:008",
+          "accessibility": "skill:accessibility:009",
+          "frontend-development": "skill:frontend-dev:010",
+          "javascript": "skill:javascript:011",
+          "react": "skill:react:012",
+          "vue": "skill:vue:013",
+          "angular": "skill:angular:014",
+          "css": "skill:css:015",
+          "html": "skill:html:016",
+          "node-js": "skill:nodejs:017",
+          "python": "skill:python:018",
+          "data-analysis": "skill:data-analysis:019",
+          "machine-learning": "skill:ml:020",
+          "product-management": "skill:product-mgmt:021",
+          "strategic-thinking": "skill:strategic-thinking:022",
+          "communication": "skill:communication:023",
+          "leadership": "skill:leadership:024",
+          "project-management": "skill:project-mgmt:025"
+        }
+      },
+      "inputs": [
+        {
+          "name": "parsedInput",
+          "type": "object",
+          "source": "node-1-input-parser.parsedInput",
+          "description": "Validated input from parser"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "normalizedCurrentSkills",
+          "type": "array",
+          "description": "Current skills mapped to canonical knowledge graph IDs with confidence scores"
+        },
+        {
+          "name": "normalizationMetadata",
+          "type": "object",
+          "description": "Details about normalization process including unmapped skills and ambiguities"
+        }
+      ]
+    },
+    {
+      "id": "node-3-neo4j-matcher",
+      "name": "Neo4j Matcher",
+      "type": "neo4j_query",
+      "description": "Locates user's current position in skill graph and identifies available skill transfers",
+      "position": {
+        "x": 600,
+        "y": 50
+      },
+      "config": {
+        "host": "${neo4j_host}",
+        "user": "${neo4j_user}",
+        "password": "${neo4j_password}",
+        "database": "neo4j",
+        "query": "MATCH (s:Skill)-[t:TRANSFERS_TO]->(t_skill:Skill)\nWHERE s.id IN $skillIds\nWITH s, t_skill, t.weight as transferWeight\nMATCH (s)-[r:REQUIRES_KNOWLEDGE]->(k:Concept)\nRETURN {\n  skillId: s.id,\n  skillName: s.name,\n  skillLevel: s.level,\n  transfers: collect({\n    targetSkillId: t_skill.id,\n    targetSkillName: t_skill.name,\n    weight: transferWeight\n  }),\n  prerequisites: collect({\n    conceptId: k.id,\n    conceptName: k.name\n  })\n} AS skillMapping",
+        "parameters": {
+          "skillIds": {
+            "source": "node-2-skill-normalizer.normalizedCurrentSkills",
+            "transform": "extract(skill -> skill.id)"
+          }
+        },
+        "timeout": 30000
+      },
+      "inputs": [
+        {
+          "name": "normalizedCurrentSkills",
+          "type": "array",
+          "source": "node-2-skill-normalizer.normalizedCurrentSkills",
+          "description": "Normalized skill IDs from previous node"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "currentSkillGraph",
+          "type": "array",
+          "description": "User's current skills with their graph relationships and transfer possibilities"
+        },
+        {
+          "name": "matchedSkillsCount",
+          "type": "integer",
+          "description": "Number of skills successfully matched in the knowledge graph"
+        }
+      ]
+    },
+    {
+      "id": "node-4-target-resolver",
+      "name": "Target Resolver",
+      "type": "neo4j_query",
+      "description": "Maps target role to its required skills and capabilities",
+      "position": {
+        "x": 850,
+        "y": 50
+      },
+      "config": {
+        "host": "${neo4j_host}",
+        "user": "${neo4j_user}",
+        "password": "${neo4j_password}",
+        "database": "neo4j",
+        "query": "MATCH (role:Role {name: $targetRole})\nMATCH (role)-[req:REQUIRES]->(s:Skill)\nWITH role, s, req.priority as priority, req.importance as importance\nMATCH (s)-[has:HAS_LEVEL]->(level:Level)\nRETURN {\n  roleId: role.id,\n  roleName: role.name,\n  roleDescription: role.description,\n  requiredSkills: collect({\n    skillId: s.id,\n    skillName: s.name,\n    priority: priority,\n    importance: importance,\n    requiredLevel: level.name,\n    requiredLevelScore: level.score\n  })\n} AS roleRequirements",
+        "parameters": {
+          "targetRole": {
+            "source": "node-1-input-parser.parsedInput",
+            "transform": "input -> input.targetRole"
+          }
+        },
+        "timeout": 30000
+      },
+      "inputs": [
+        {
+          "name": "parsedInput",
+          "type": "object",
+          "source": "node-1-input-parser.parsedInput",
+          "description": "Target role from user input"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "targetRoleRequirements",
+          "type": "object",
+          "description": "Complete skill requirements for target role with priority and importance levels"
+        },
+        {
+          "name": "totalRequiredSkills",
+          "type": "integer",
+          "description": "Total number of skills required for target role"
+        }
+      ]
+    },
+    {
+      "id": "node-5-gap-analyzer",
+      "name": "Gap Analyzer",
+      "type": "neo4j_query",
+      "description": "Computes skill gaps, identifies learning paths, and finds relevant courses and tools",
+      "position": {
+        "x": 1100,
+        "y": 50
+      },
+      "config": {
+        "host": "${neo4j_host}",
+        "user": "${neo4j_user}",
+        "password": "${neo4j_password}",
+        "database": "neo4j",
+        "query": "WITH $requiredSkillIds as requiredIds, $currentSkillIds as currentIds\nMATCH (role:Role {id: $roleId})\nWITH requiredIds, currentIds, role, \n     apoc.coll.intersection(requiredIds, currentIds) as directMatches,\n     apoc.coll.subtract(requiredIds, currentIds) as gaps\nMATCH (gapSkill:Skill) WHERE gapSkill.id IN gaps\nWITH role, directMatches, gaps, gapSkill,\n     size(directMatches) as matchCount, size(gaps) as gapCount\nMATCH (gapSkill)<-[teaches:TEACHES]-(course:Course)\nMATCH (gapSkill)<-[develops:DEVELOPS]-(tool:Tool)\nMATCH path=shortestPath((s:Skill)-[*..4]->(gapSkill))\nWHERE s.id IN currentIds\nRETURN {\n  summary: {\n    totalRequired: size(requiredIds),\n    directMatches: matchCount,\n    matchPercentage: round(100.0 * matchCount / size(requiredIds), 1),\n    skillGaps: gapCount\n  },\n  directMatches: collect(DISTINCT directMatches),\n  skillGaps: collect(DISTINCT {\n    skillId: gapSkill.id,\n    skillName: gapSkill.name,\n    courses: collect(DISTINCT {courseId: course.id, courseName: course.name, duration: course.durationHours}),\n    tools: collect(DISTINCT {toolId: tool.id, toolName: tool.name, type: tool.type}),\n    shortestPathDistance: min([length(path)])\n  }),\n  transferPaths: collect(DISTINCT {\n    sourcePath: nodes(path)[0].id,\n    targetPath: nodes(path)[-1].id,\n    distance: length(path),\n    weight: reduce(w=0, r in relationships(path) | w + coalesce(r.weight, 1))\n  })\n} AS gapAnalysis",
+        "parameters": {
+          "roleId": {
+            "source": "node-4-target-resolver.targetRoleRequirements",
+            "transform": "target -> target.roleId"
+          },
+          "requiredSkillIds": {
+            "source": "node-4-target-resolver.targetRoleRequirements",
+            "transform": "target -> [s IN target.requiredSkills | s.skillId]"
+          },
+          "currentSkillIds": {
+            "source": "node-3-neo4j-matcher.currentSkillGraph",
+            "transform": "current -> [s IN current | s.skillId]"
+          }
+        },
+        "timeout": 45000
+      },
+      "inputs": [
+        {
+          "name": "currentSkillGraph",
+          "type": "array",
+          "source": "node-3-neo4j-matcher.currentSkillGraph",
+          "description": "User's current skill graph from matcher"
+        },
+        {
+          "name": "targetRoleRequirements",
+          "type": "object",
+          "source": "node-4-target-resolver.targetRoleRequirements",
+          "description": "Target role requirements from resolver"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "gapAnalysisSummary",
+          "type": "object",
+          "description": "High-level summary of skill alignment percentage and gap count"
+        },
+        {
+          "name": "skillGapDetails",
+          "type": "array",
+          "description": "Detailed breakdown of each skill gap with associated courses and tools"
+        },
+        {
+          "name": "learningPaths",
+          "type": "array",
+          "description": "Available learning paths from current skills to target skills with weights"
+        }
+      ]
+    },
+    {
+      "id": "node-6-plan-generator",
+      "name": "Plan Generator",
+      "type": "llm",
+      "description": "Generates personalized, actionable learning plan based on graph analysis",
+      "position": {
+        "x": 1350,
+        "y": 50
+      },
+      "config": {
+        "model": "${llm_model}",
+        "temperature": 0.7,
+        "maxTokens": 3000,
+        "apiKey": "${llm_api_key}",
+        "apiEndpoint": "${llm_api_endpoint}",
+        "systemPromptFile": "prompts/plan-generator.md",
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "Executive summary of the learning plan"
+            },
+            "currentState": {
+              "type": "object",
+              "properties": {
+                "role": "string",
+                "skillCount": "integer",
+                "alignmentPercentage": "number"
+              }
+            },
+            "targetState": {
+              "type": "object",
+              "properties": {
+                "role": "string",
+                "estimatedTimelineMonths": "integer"
+              }
+            },
+            "priorities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rank": "integer",
+                  "skill": "string",
+                  "rationale": "string",
+                  "timeEstimate": "string",
+                  "resources": {
+                    "type": "array",
+                    "items": "object"
+                  }
+                }
+              },
+              "description": "Prioritized skill development plan"
+            },
+            "milestones": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "month": "integer",
+                  "description": "string",
+                  "skills": "array"
+                }
+              }
+            },
+            "encouragement": {
+              "type": "string",
+              "description": "Personalized motivational message"
+            },
+            "nextSteps": {
+              "type": "array",
+              "items": "string",
+              "description": "Immediate actionable next steps"
+            }
+          },
+          "required": ["summary", "currentState", "targetState", "priorities", "milestones"]
+        }
+      },
+      "inputs": [
+        {
+          "name": "parsedInput",
+          "type": "object",
+          "source": "node-1-input-parser.parsedInput",
+          "description": "Original user input"
+        },
+        {
+          "name": "gapAnalysisSummary",
+          "type": "object",
+          "source": "node-5-gap-analyzer.gapAnalysisSummary",
+          "description": "Gap analysis summary"
+        },
+        {
+          "name": "skillGapDetails",
+          "type": "array",
+          "source": "node-5-gap-analyzer.skillGapDetails",
+          "description": "Detailed gap information"
+        },
+        {
+          "name": "currentSkillGraph",
+          "type": "array",
+          "source": "node-3-neo4j-matcher.currentSkillGraph",
+          "description": "Current skill graph"
+        },
+        {
+          "name": "targetRoleRequirements",
+          "type": "object",
+          "source": "node-4-target-resolver.targetRoleRequirements",
+          "description": "Target role requirements"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "learningPlan",
+          "type": "object",
+          "description": "Complete personalized learning plan with priorities, milestones, and resources"
+        },
+        {
+          "name": "planJson",
+          "type": "string",
+          "description": "Learning plan serialized as JSON string for export"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-1-to-2",
+      "source": "node-1-input-parser",
+      "sourcePort": "parsedInput",
+      "target": "node-2-skill-normalizer",
+      "targetPort": "parsedInput",
+      "dataType": "object"
+    },
+    {
+      "id": "conn-2-to-3",
+      "source": "node-2-skill-normalizer",
+      "sourcePort": "normalizedCurrentSkills",
+      "target": "node-3-neo4j-matcher",
+      "targetPort": "normalizedCurrentSkills",
+      "dataType": "array"
+    },
+    {
+      "id": "conn-1-to-4",
+      "source": "node-1-input-parser",
+      "sourcePort": "parsedInput",
+      "target": "node-4-target-resolver",
+      "targetPort": "parsedInput",
+      "dataType": "object"
+    },
+    {
+      "id": "conn-3-to-5",
+      "source": "node-3-neo4j-matcher",
+      "sourcePort": "currentSkillGraph",
+      "target": "node-5-gap-analyzer",
+      "targetPort": "currentSkillGraph",
+      "dataType": "array"
+    },
+    {
+      "id": "conn-4-to-5",
+      "source": "node-4-target-resolver",
+      "sourcePort": "targetRoleRequirements",
+      "target": "node-5-gap-analyzer",
+      "targetPort": "targetRoleRequirements",
+      "dataType": "object"
+    },
+    {
+      "id": "conn-1-to-6",
+      "source": "node-1-input-parser",
+      "sourcePort": "parsedInput",
+      "target": "node-6-plan-generator",
+      "targetPort": "parsedInput",
+      "dataType": "object"
+    },
+    {
+      "id": "conn-3-to-6",
+      "source": "node-3-neo4j-matcher",
+      "sourcePort": "currentSkillGraph",
+      "target": "node-6-plan-generator",
+      "targetPort": "currentSkillGraph",
+      "dataType": "array"
+    },
+    {
+      "id": "conn-4-to-6",
+      "source": "node-4-target-resolver",
+      "sourcePort": "targetRoleRequirements",
+      "target": "node-6-plan-generator",
+      "targetPort": "targetRoleRequirements",
+      "dataType": "object"
+    },
+    {
+      "id": "conn-5-to-6",
+      "source": "node-5-gap-analyzer",
+      "sourcePort": "gapAnalysisSummary",
+      "target": "node-6-plan-generator",
+      "targetPort": "gapAnalysisSummary",
+      "dataType": "object"
+    },
+    {
+      "id": "conn-5-gap-to-6",
+      "source": "node-5-gap-analyzer",
+      "sourcePort": "skillGapDetails",
+      "target": "node-6-plan-generator",
+      "targetPort": "skillGapDetails",
+      "dataType": "array"
+    }
+  ]
+}

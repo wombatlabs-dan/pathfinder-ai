@@ -1,0 +1,30 @@
+{
+  "name": "pathfinder-backend",
+  "version": "1.0.0",
+  "description": "PathFinder AI Design Navigator - Backend API for hackathon project",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "pathfinder",
+    "neo4j",
+    "design",
+    "ai",
+    "navigator"
+  ],
+  "author": "PathFinder Team",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "neo4j-driver": "^5.14.0",
+    "openai": "^4.28.0",
+    "rocketride": "^1.0.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
