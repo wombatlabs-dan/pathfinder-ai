@@ -5,17 +5,76 @@ const neo4j = require('neo4j-driver');
 const { OpenAI } = require('openai');
 const path = require('path');
 
-// RocketRide integration — currently disabled to prevent startup crashes
-// Will reconnect when pipeline is running in Antigravity
-let rrReady = false;
+// RocketRide Integration
+// The PathFinder pipeline is a 6-node workflow built in RocketRide's Antigravity IDE:
+//   Input Parser → Skill Normalizer (LLM) → Neo4j Matcher → Target Resolver → Gap Analyzer → Plan Generator (LLM)
+// See /rocketride/pathfinder-pipeline.json for the full pipeline definition.
+//
+// Architecture: The Express backend performs the same analysis logic (Neo4j queries + LLM plan generation)
+// that the RocketRide pipeline orchestrates. When the pipeline is running in Antigravity, this server
+// calls it via webhook as a parallel enrichment path. Both paths share the same Neo4j graph and LLM prompts.
 
-const initializeRocketRide = () => {
-  console.log('RocketRide SDK integration available but not active (start pipeline in Antigravity to enable)');
+let rrReady = false;
+const ROCKETRIDE_WEBHOOK_URL = process.env.ROCKETRIDE_WEBHOOK_URL || null;
+
+const initializeRocketRide = async () => {
+  if (!ROCKETRIDE_WEBHOOK_URL) {
+    console.log('RocketRide webhook URL not configured. Pipeline enrichment disabled.');
+    console.log('To enable: set ROCKETRIDE_WEBHOOK_URL in .env and start the pipeline in Antigravity.');
+    return;
+  }
+
+  try {
+    // Verify the webhook is reachable
+    const response = await fetch(ROCKETRIDE_WEBHOOK_URL, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+    rrReady = true;
+    console.log(`RocketRide pipeline connected via webhook: ${ROCKETRIDE_WEBHOOK_URL}`);
+  } catch (error) {
+    console.log(`RocketRide webhook not reachable (${error.message}). Pipeline enrichment will be skipped.`);
+    rrReady = false;
+  }
 };
 
 const callRocketRidePipeline = async (currentRole, skills, targetRole) => {
-  console.log('RocketRide: pipeline not active, skipping');
-  return null;
+  if (!rrReady || !ROCKETRIDE_WEBHOOK_URL) return null;
+
+  try {
+    const payload = {
+      currentRole,
+      currentSkills: skills,
+      targetRole,
+      timestamp: new Date().toISOString(),
+    };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(ROCKETRIDE_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => 'no body');
+      console.log(`RocketRide responded with status ${response.status}: ${errorBody}`);
+      return null;
+    }
+
+    const result = await response.json();
+    console.log('RocketRide pipeline returned successfully');
+    return result;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log('RocketRide pipeline timed out after 30s — skipping enrichment');
+    } else {
+      console.log(`RocketRide pipeline error: ${error.message}`);
+    }
+    return null;
+  }
 };
 
 const app = express();
@@ -682,8 +741,8 @@ app.get('/api/demo/sarah', async (req, res) => {
 // Replit frontend endpoints (/api/roles in Replit format, /api/path/compute)
 // ============================================================
 
-// Serve Replit static frontend
-app.use(express.static(path.resolve(__dirname, '../../pathfinder-homepage')));
+// Serve static frontend (if built)
+app.use(express.static(path.resolve(__dirname, '../client/build')));
 
 app.post('/api/path/compute', async (req, res) => {
   try {
@@ -781,7 +840,7 @@ app.get('/api/health', (req, res) => {
 // SPA catch-all: serve index.html for non-API routes (client-side routing)
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
-  res.sendFile(path.resolve(__dirname, '../../pathfinder-homepage/index.html'));
+  res.sendFile(path.resolve(__dirname, '../client/build/index.html'));
 });
 
 app.use((err, req, res, next) => {

@@ -71,7 +71,7 @@ These configure the language model for skill normalization and plan generation:
 ```
 LLM_API_KEY=<your-api-key>
 LLM_MODEL=gpt-4
-LLM_API_ENDPOINT=https://api.openai.com/v1
+LLM_BASE_URL=https://api.openai.com/v1
 ```
 
 **Supported Models:**
@@ -123,7 +123,7 @@ CREATE (c)-[:TEACHES]->(s)
 CREATE (s)-[:TRANSFERS_TO {weight: 0.8}]->(s2:Skill {id: "skill:vue:013", name: "Vue.js"})
 ```
 
-For a complete schema, see the Neo4j Cypher scripts in your PathFinder repository's `database/` directory.
+For a complete schema, see the Neo4j Cypher scripts in `neo4j/seed.cypher` at the repository root.
 
 ### 4. Run the Pipeline
 
