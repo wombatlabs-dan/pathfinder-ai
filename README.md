@@ -5,6 +5,10 @@
 
 An AI-powered career navigation tool that helps design professionals find their personalized path into AI-augmented roles. Built with **Neo4j** knowledge graphs and **RocketRide AI** pipeline orchestration.
 
+![PathFinder results — interactive graph visualization and alignment score](docs/pathfinder-demo-screen04.png)
+
+> **[See the full demo walkthrough with all 9 screenshots](DEMO.md)**
+
 ---
 
 ## Quick Start (Demo in 2 minutes)
