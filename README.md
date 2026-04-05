@@ -1,6 +1,6 @@
 # PathFinder: AI Design Navigator
-
-**HackWithBay 2.0 — March 30, 2026**
+​
+**Hackathon project:** [HackwithBay 2.0](https://luma.com/2n8vk5s3?tk=CDAKzE) – 8-Hour Hackathon at AWS Builder Loft, SF
 **Built by Dan Harrison, WombatLabs**
 
 An AI-powered career navigation tool that helps design professionals find their personalized path into AI-augmented roles. Built with **Neo4j** knowledge graphs and **RocketRide AI** pipeline orchestration.
