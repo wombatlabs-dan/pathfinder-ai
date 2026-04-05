@@ -1,6 +1,6 @@
 # 🔍 PathFinder
 
->**AI-powered career navigation tool**
+>**AI-powered career navigation tool** 
 ​
 **Built live during** [HackwithBay 2.0](https://luma.com/2n8vk5s3?tk=CDAKzE) – 8-Hour Hackathon at AWS Builder Loft, SF
 
